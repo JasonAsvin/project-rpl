@@ -1,6 +1,7 @@
 'use client'
 
-import React, { Suspense, useEffect } from 'react'
+import React, { Suspense } from 'react'
+import { getArticleBySlug, getRelatedArticles } from '@/lib/articles'
 import { notFound } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -8,16 +9,6 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 import { Newsletter } from '@/components/ui/Newsletter'
 import { useState } from 'react'
-import { Article, getArticleBySlug, getAllArticles, API_URL } from '@/lib/api'
-
-const categoryImageMap: { [key: string]: string } = {
-  'Digital Marketing': 'keyboard.svg',
-  'Machine Learning': 'ddos.svg',
-  'UI/UX Design': 'browser.svg',
-  'Melamar Kerja': 'notes.svg',
-  'Lintas Minat': 'hacking.svg',
-  'Jenjang Karir': 'wordle.svg'
-};
 
 type PageParams = {
   params: Promise<{ id: string }> | { id: string };
@@ -25,68 +16,12 @@ type PageParams = {
 
 export default function ArticlePage({ params }: PageParams) {
   const resolvedParams = React.use(params as Promise<{ id: string }>);
-  const [article, setArticle] = useState<Article | null>(null);
-  const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const article = getArticleBySlug(resolvedParams.id)
+  const relatedArticles = getRelatedArticles(resolvedParams.id)
   const [showCopyFeedback, setShowCopyFeedback] = useState(false);
-  console.log(article)
-  
-  useEffect(() => {
-    const fetchArticle = async () => {
-      try {
-        const articleData = await getArticleBySlug(resolvedParams.id);
-        if (!articleData) {
-          throw new Error('Article not found');
-        }
-        
-        setArticle(articleData);
-        
-        // Fetch related articles
-        const allArticles = await getAllArticles();
-        const related = allArticles
-          .filter((a) => a.slug !== resolvedParams.id && a.category === articleData.category)
-          .slice(0, 3)
-          .map((article) => ({
-            ...article,
-            image: categoryImageMap[article.category] || 'default.svg'
-          }));
-        setRelatedArticles(related);
-      } catch (err) {
-        console.error('Error fetching article:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch article');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchArticle();
-  }, [resolvedParams.id]);
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          <p className="font-medium">Error</p>
-          <p>{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   if (!article) {
-    notFound();
+    notFound()
   }
 
   const handleCopyLink = async () => {
@@ -116,7 +51,7 @@ export default function ArticlePage({ params }: PageParams) {
         {/* Featured Image */}
         <div className="relative w-full h-64 mb-8">
           <Image
-            src={`${API_URL}/storage/artikel-thumbnails/${article.image.split('/').pop()}`}
+            src={article.image}
             alt={article.title}
             fill
             className="object-contain"
@@ -128,18 +63,19 @@ export default function ArticlePage({ params }: PageParams) {
           {article.content.map((section, index) => (
             <div key={index} className="mb-8">
               <h2 className="text-2xl font-bold mb-4">{section.title}</h2>
-              <div className="text-gray-700 mb-4 leading-relaxed whitespace-pre-wrap">
-                {section.paragraphs}
-              </div>
+              {section.paragraphs.map((paragraph, pIndex) => (
+                <p key={pIndex} className="text-gray-700 mb-4 leading-relaxed">
+                  {paragraph}
+                </p>
+              ))}
               {section.bulletPoints && (
-                <div className="pl-6">
-                  {section.bulletPoints.split('\n').map((point, idx) => (
-                    <div key={idx} className="flex items-start mb-2">
-                      <span className="mr-2">•</span>
-                      <span className="text-gray-700">{point.replace('- ', '')}</span>
-                    </div>
+                <ul className="list-disc pl-6 mb-4">
+                  {section.bulletPoints.map((point, bIndex) => (
+                    <li key={bIndex} className="text-gray-700 mb-2">
+                      {point}
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </div>
           ))}
@@ -199,14 +135,32 @@ export default function ArticlePage({ params }: PageParams) {
         </div>
 
         {/* Related Articles */}
-        {article.related_articles && article.related_articles.length > 0 && (
+        {relatedArticles.length > 0 && (
           <div className="mt-12">
-            <h3 className="text-2xl font-bold mb-6">Related Articles</h3>
+            <h3 className="text-2xl font-bold mb-6">What to read next</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {article.related_articles.map((related, index) => (
-                <div key={index} className="bg-white rounded-lg shadow-sm p-4">
-                  <h4 className="font-semibold mt-2">{related.title}</h4>
-                </div>
+              {relatedArticles.map((related) => (
+                <Link 
+                  href={`/blog/${related.slug}`} 
+                  key={related.slug}
+                  className="group"
+                >
+                  <div className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
+                    <div className="relative w-full h-40 mb-4">
+                      <Image
+                        src={related.image}
+                        alt={related.title}
+                        fill
+                        className="object-contain"
+                      />
+                    </div>
+                    <span className="text-sm text-blue-600">{related.category}</span>
+                    <h4 className="font-semibold mt-2 group-hover:text-blue-600 transition-colors">
+                      {related.title}
+                    </h4>
+                    <p className="text-sm text-gray-600 mt-2">{related.date}</p>
+                  </div>
+                </Link>
               ))}
             </div>
           </div>
@@ -216,5 +170,5 @@ export default function ArticlePage({ params }: PageParams) {
       <Newsletter />
       <Footer />
     </>
-  );
+  )
 }

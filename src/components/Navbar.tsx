@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { ChevronDown } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
+import { ChevronDown } from 'lucide-react'
 
 const Navbar = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
